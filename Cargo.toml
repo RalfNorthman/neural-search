@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.70"
+async-openai = "0.10.2"
 bytes = "1.4.0"
 dotenvy = "0.15.7"
 html2text = "0.5.1"

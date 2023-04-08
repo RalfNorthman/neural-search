@@ -1,8 +1,10 @@
 use anyhow::Result;
+
+use async_openai::types::{CreateEmbeddingRequestArgs, CreateEmbeddingResponse, EmbeddingInput};
+use async_openai::Client;
 use qdrant_client::prelude::*;
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{CreateCollection, SearchPoints, VectorParams, VectorsConfig};
-use std::collections::HashMap;
 use std::env;
 
 // Example of top level client
@@ -32,6 +34,26 @@ impl Helper for CreateCollection {
     }
 }
 
+async fn embed<T>(inputs: T) -> Result<CreateEmbeddingResponse>
+where
+    T: Into<EmbeddingInput>,
+{
+    let client = Client::new();
+
+    // An embedding is a vector (list) of floating point numbers.
+    // The distance between two vectors measures their relatedness.
+    // Small distances suggest high relatedness and large distances suggest low relatedness.
+
+    let request = CreateEmbeddingRequestArgs::default()
+        .model("text-embedding-ada-002")
+        .input(inputs)
+        .build()?;
+
+    let response = client.embeddings().create(request).await?;
+
+    Ok(response)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv()?;
@@ -53,37 +75,58 @@ async fn main() -> Result<()> {
     client.delete_collection(collection_name).await?;
 
     client
-        .create_collection(&CreateCollection::with_name_dim(collection_name.into(), 10))
+        .create_collection(&CreateCollection::with_name_dim(
+            collection_name.into(),
+            1536,
+        ))
         .await?;
 
     let collection_info = client.collection_info(collection_name).await?;
     dbg!(collection_info);
 
-    let payload: Payload = vec![("foo", "Bar".into()), ("bar", 12.into())]
-        .into_iter()
-        .collect::<HashMap<_, Value>>()
-        .into();
+    // let payload: Payload = vec![("foo", "Bar".into()), ("bar", 12.into())]
+    // .into_iter()
+    // .collect::<HashMap<_, Value>>()
+    // .into();
 
-    let points = vec![PointStruct::new(0, vec![12.; 10], payload)];
+    let texts = vec![
+        "Cat chases mouse.",
+        "Feline hunts rodent.",
+        "Det var en katt- och råttalek.",
+        "Katt jagar råtta.",
+        "Ham sandwich.",
+        "Swiss cheese from the alps.",
+    ];
+    let embed_response = embed(texts).await?;
+
+    let points = embed_response
+        .data
+        .into_iter()
+        .map(|b| {
+            let mut payload = Payload::new();
+            payload.insert("text", b.object);
+            PointStruct::new(b.index as u64, b.embedding, payload)
+        })
+        .collect();
     client
         .upsert_points_blocking(collection_name, points, None)
         .await?;
 
-    let search_result = client
-        .search_points(&SearchPoints {
-            collection_name: collection_name.into(),
-            vector: vec![11.; 10],
-            filter: None,
-            limit: 10,
-            with_vectors: None,
-            with_payload: None,
-            params: None,
-            score_threshold: None,
-            offset: None,
-            ..Default::default()
-        })
-        .await?;
-    dbg!(search_result);
+    //    let search_result = client
+    //        .search_points(&SearchPoints {
+    //            collection_name: collection_name.into(),
+    //            vector: vec![11.; 10],
+    //            filter: None,
+    //            limit: 10,
+    //            with_vectors: None,
+    //            with_payload: None,
+    //            params: None,
+    //            score_threshold: None,
+    //            offset: None,
+    //            ..Default::default()
+    //        })
+    //        .await?;
+    //    dbg!(search_result);
     // search_result = SearchResponse {
     //     result: [
     //         ScoredPoint {
