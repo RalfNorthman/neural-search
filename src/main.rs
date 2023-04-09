@@ -4,7 +4,10 @@ use async_openai::types::{CreateEmbeddingRequestArgs, CreateEmbeddingResponse, E
 use async_openai::Client;
 use qdrant_client::prelude::*;
 use qdrant_client::qdrant::vectors_config::Config;
-use qdrant_client::qdrant::{CreateCollection, SearchPoints, VectorParams, VectorsConfig};
+use qdrant_client::qdrant::{
+    CreateCollection, Filter, HasIdCondition, ScrollPoints, SearchPoints, VectorParams,
+    VectorsConfig,
+};
 use std::env;
 
 // Example of top level client
@@ -60,8 +63,28 @@ async fn main() -> Result<()> {
 
     let client = client().await?;
 
-    let collections_list = client.list_collections().await?;
-    dbg!(collections_list);
+    let collection_name = "test";
+
+    // let collection_info = client.collection_info(collection_name).await?;
+    // dbg!(collection_info);
+
+    let scroll_input = ScrollPoints {
+        collection_name: collection_name.into(),
+        filter: Filter {
+            must: vec![HasIdCondition {
+                has_id: vec![0.into()],
+            }
+            .into()],
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    let mouse = client.scroll(&scroll_input).await?;
+    dbg!(mouse);
+
+    // let collections_list = client.list_collections().await?;
+    // dbg!(collections_list);
     // collections_list = ListCollectionsResponse {
     //     collections: [
     //         CollectionDescription {
@@ -71,18 +94,11 @@ async fn main() -> Result<()> {
     //     time: 1.78e-6,
     // }
 
-    let collection_name = "test";
+    /*
     client.delete_collection(collection_name).await?;
 
-    client
-        .create_collection(&CreateCollection::with_name_dim(
-            collection_name.into(),
-            1536,
-        ))
-        .await?;
-
-    let collection_info = client.collection_info(collection_name).await?;
-    dbg!(collection_info);
+    let new_collection = CreateCollection::with_name_dim(collection_name.into(), 1536);
+    client.create_collection(&new_collection).await?;
 
     // let payload: Payload = vec![("foo", "Bar".into()), ("bar", 12.into())]
     // .into_iter()
@@ -97,36 +113,38 @@ async fn main() -> Result<()> {
         "Ham sandwich.",
         "Swiss cheese from the alps.",
     ];
-    let embed_response = embed(texts).await?;
+    let embed_response = embed(&texts).await?;
 
     let points = embed_response
         .data
         .into_iter()
-        .map(|b| {
+        .zip(texts.iter())
+        .map(|(emb, txt)| {
             let mut payload = Payload::new();
-            payload.insert("text", b.object);
-            PointStruct::new(b.index as u64, b.embedding, payload)
+            payload.insert("text", *txt);
+            PointStruct::new(emb.index as u64, emb.embedding, payload)
         })
         .collect();
     client
         .upsert_points_blocking(collection_name, points, None)
         .await?;
 
-    //    let search_result = client
-    //        .search_points(&SearchPoints {
-    //            collection_name: collection_name.into(),
-    //            vector: vec![11.; 10],
-    //            filter: None,
-    //            limit: 10,
-    //            with_vectors: None,
-    //            with_payload: None,
-    //            params: None,
-    //            score_threshold: None,
-    //            offset: None,
-    //            ..Default::default()
-    //        })
-    //        .await?;
-    //    dbg!(search_result);
+    let search_result = client
+        .search_points(&SearchPoints {
+            collection_name: collection_name.into(),
+            vector: vec![11.; 10],
+            filter: None,
+            limit: 10,
+            with_vectors: None,
+            with_payload: None,
+            params: None,
+            score_threshold: None,
+            offset: None,
+            ..Default::default()
+        })
+        .await?;
+    dbg!(search_result);
+    */
     // search_result = SearchResponse {
     //     result: [
     //         ScoredPoint {
