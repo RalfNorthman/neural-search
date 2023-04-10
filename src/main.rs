@@ -5,8 +5,8 @@ use async_openai::Client;
 use qdrant_client::prelude::*;
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{
-    CreateCollection, Filter, HasIdCondition, ScrollPoints, SearchPoints, VectorParams,
-    VectorsConfig,
+    with_vectors_selector::SelectorOptions, CreateCollection, Filter, HasIdCondition, ScrollPoints,
+    SearchPoints, VectorParams, VectorsConfig,
 };
 use std::env;
 
@@ -68,6 +68,7 @@ async fn main() -> Result<()> {
     // let collection_info = client.collection_info(collection_name).await?;
     // dbg!(collection_info);
 
+    /*
     let scroll_input = ScrollPoints {
         collection_name: collection_name.into(),
         filter: Filter {
@@ -78,10 +79,12 @@ async fn main() -> Result<()> {
             ..Default::default()
         }
         .into(),
+      //  with_vectors: Some(true.into()),
         ..Default::default()
     };
     let mouse = client.scroll(&scroll_input).await?;
-    dbg!(mouse);
+    */
+    // dbg!(mouse);
 
     // let collections_list = client.list_collections().await?;
     // dbg!(collections_list);
@@ -129,22 +132,33 @@ async fn main() -> Result<()> {
         .upsert_points_blocking(collection_name, points, None)
         .await?;
 
-    let search_result = client
+    */
+    let input = "Best food in Austria?";
+    dbg!(&input);
+    let texts = vec![input];
+    let mut embed_response = embed(&texts).await?;
+    let query_vec = embed_response.data.pop().expect("empty response vec").embedding;
+
+    let search_response = client
         .search_points(&SearchPoints {
             collection_name: collection_name.into(),
-            vector: vec![11.; 10],
+            vector: query_vec,
             filter: None,
             limit: 10,
             with_vectors: None,
-            with_payload: None,
+            with_payload: Some(true.into()),
             params: None,
             score_threshold: None,
             offset: None,
             ..Default::default()
         })
         .await?;
-    dbg!(search_result);
-    */
+    for point in search_response.result.iter() {
+        let txt = point.payload.get("text").expect("no text payload");
+        println!();
+        println!("{} : {:?}", point.score, txt);
+    }
+    dbg!(search_response.time);
     // search_result = SearchResponse {
     //     result: [
     //         ScoredPoint {
